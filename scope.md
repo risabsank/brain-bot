@@ -8,7 +8,7 @@ Build a web application that helps users move from raw ideas to actionable plans
 2. **Project Planning (Directed toward scope/roadmap)**
 3. **Prompted Brainstorming (Document-informed, directed output)**
 
-The product should feel friendly, low-friction, and proactive: users can type/save thoughts naturally while the AI offers timely suggestions, critiques, and alternate directions without requiring constant manual prompting.
+The product should feel friendly, low-friction, and proactive: users can type/save thoughts naturally while the AI offers timely suggestions, critiques, and alternate directions without requiring constant manual prompting. This project is with the goal of AI not replacing thinking, but allowing you to explore more as you think of new things. The critical thinking aspect is primarily for the user to do.
 
 ---
 
