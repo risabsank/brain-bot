@@ -14,9 +14,9 @@ By MVP launch, users should be able to:
 
 ---
 
-## 3) Timeline (12 Weeks)
+## 3) Timeline
 
-## Phase 0 — Discovery & Technical Design (Week 1)
+## Phase 0 — Discovery & Technical Design
 ### Deliverables
 - Product requirements finalization (based on `scope.md`).
 - UX wireframes for all 3 modes.
@@ -29,7 +29,7 @@ By MVP launch, users should be able to:
 
 ---
 
-## Phase 1 — Platform Foundations (Weeks 2–3)
+## Phase 1 — Platform Foundations
 ### Build
 - Authentication and user workspace shell.
 - Session CRUD APIs + persistence.
@@ -42,7 +42,7 @@ By MVP launch, users should be able to:
 
 ---
 
-## Phase 2 — AI Copilot Core (Weeks 4–5)
+## Phase 2 — AI Copilot Core
 ### Build
 - Save-triggered AI pipeline.
 - Suggestion taxonomy: extension, critique, alternatives, summarize, rewrite.
@@ -56,7 +56,7 @@ By MVP launch, users should be able to:
 
 ---
 
-## Phase 3 — Mode-Specific Workflows (Weeks 6–7)
+## Phase 3 — Mode-Specific Workflows
 ### Build
 - **Brainstorm** mode prompts and output formatting.
 - **Project Planning** structured sections + guided prompts.
@@ -68,7 +68,7 @@ By MVP launch, users should be able to:
 
 ---
 
-## Phase 4 — History, Search, and Filters (Week 8)
+## Phase 4 — History, Search, and Filters
 ### Build
 - Sessions list page with search (title/content).
 - Filters by mode/date; sort by created/updated/title.
@@ -79,7 +79,7 @@ By MVP launch, users should be able to:
 
 ---
 
-## Phase 5 — PDF Export and Templates (Week 9)
+## Phase 5 — PDF Export and Templates
 ### Build
 - Export service and template system.
 - 3 export templates:
@@ -93,7 +93,7 @@ By MVP launch, users should be able to:
 
 ---
 
-## Phase 6 — Quality, Guardrails, and Hardening (Weeks 10–11)
+## Phase 6 — Quality, Guardrails, and Hardening
 ### Build
 - Error handling + retries for AI calls.
 - Token/cost guardrails and prompt budget controls.
@@ -106,7 +106,7 @@ By MVP launch, users should be able to:
 
 ---
 
-## Phase 7 — Launch Readiness (Week 12)
+## Phase 7 — Launch Readiness
 ### Build
 - Beta onboarding copy and empty states.
 - Analytics dashboards for MVP metrics.
@@ -118,7 +118,7 @@ By MVP launch, users should be able to:
 
 ---
 
-## 4) Workstreams and Ownership (Suggested)
+## 4) Workstreams and Ownership
 
 - **Product/Design**: Session flow UX, mode-specific guidance, acceptance criteria.
 - **Frontend**: Editor, suggestion UI, history/search/filter, export triggers.
@@ -175,19 +175,4 @@ By MVP launch, users should be able to:
 - User-rated usefulness of AI suggestions.
 
 ---
-
-## 8) First Sprint Plan (Week 1–2)
-
-### Sprint Goal
-Stand up foundational app shell and session lifecycle.
-
-### Stories
-- Implement auth and workspace shell.
-- Create session model + migrations.
-- Build create/open/edit/delete session APIs.
-- Add basic editor with autosave.
-- Implement new-session mode selector UI.
-
-### Definition of Done
-- End-to-end demo: create session → type notes → autosave persists → reopen content.
 
