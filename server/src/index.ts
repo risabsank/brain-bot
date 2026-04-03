@@ -29,6 +29,11 @@ const updateSessionSchema = z.object({
     documentText: z.string().optional().nullable()
 });
 
+const suggestionRequestSchema = z.object({
+    refresh: z.boolean().optional(),
+    focusText: z.string().optional().nullable()
+});
+
 app.get("/health", (_req, res) => {
     res.json({ ok: true });
 });
@@ -130,6 +135,12 @@ app.delete("/sessions/:id", (req, res) => {
 });
 
 app.post("/sessions/:id/suggestions", async (req, res) => {
+    const parsed = suggestionRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+        res.status(400).json({ error: "Invalid payload" });
+        return;
+    }
+
     const session = db.prepare("SELECT * FROM sessions WHERE id = ?").get(req.params.id) as Session | undefined;
     if (!session) {
         res.status(404).json({ error: "Session not found" });
@@ -141,7 +152,8 @@ app.post("/sessions/:id/suggestions", async (req, res) => {
         title: session.title,
         content: session.content,
         goal: session.goal,
-        documentText: session.document_text
+        documentText: session.document_text,
+        focusText: parsed.data.focusText
     });
 
     if (generated.unavailable) {
@@ -149,13 +161,22 @@ app.post("/sessions/:id/suggestions", async (req, res) => {
         return;
     }
 
+    if (parsed.data.refresh) {
+        db.prepare("DELETE FROM suggestions WHERE session_id = ? AND state = 'pending'").run(req.params.id);
+    }
+
+    const pendingCountRow = db
+        .prepare("SELECT COUNT(*) as count FROM suggestions WHERE session_id = ? AND state = 'pending'")
+        .get(req.params.id) as { count: number };
+    const needed = Math.max(0, 3 - pendingCountRow.count);
+
     const now = new Date().toISOString();
     const insert = db.prepare(
         "INSERT INTO suggestions(session_id, category, text, state, created_at) VALUES (?, ?, ?, 'pending', ?)"
     );
 
-    generated.suggestions.forEach((s) => {
-        insert.run(req.params.id, s.category as SuggestionCategory, s.text, now);
+    generated.suggestions.slice(0, needed).forEach((item) => {
+        insert.run(req.params.id, item.category as SuggestionCategory, item.text, now);
     });
 
     const suggestions = db
@@ -185,10 +206,6 @@ app.get("/sessions/:id/export", (req, res) => {
         return;
     }
 
-    const suggestions = db
-        .prepare("SELECT * FROM suggestions WHERE session_id = ? ORDER BY datetime(created_at) DESC")
-        .all(req.params.id) as Array<{ category: string; text: string; state: string }>;
-
     const doc = new PDFDocument();
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename=session-${session.id}.pdf`);
@@ -208,15 +225,6 @@ app.get("/sessions/:id/export", (req, res) => {
     if (session.document_text) {
         doc.moveDown().fontSize(14).text("Document Notes");
         doc.fontSize(11).text(session.document_text.slice(0, 2000));
-    }
-
-    doc.moveDown().fontSize(14).text("AI Suggestions");
-    if (suggestions.length === 0) {
-        doc.fontSize(11).text("No AI suggestions available.");
-    } else {
-        suggestions.slice(0, 10).forEach((item, index) => {
-            doc.fontSize(11).text(`${index + 1}. [${item.category}] (${item.state}) ${item.text}`);
-        });
     }
 
     doc.end();

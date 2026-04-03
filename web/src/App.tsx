@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { NewSessionModal } from './components/NewSessionModal';
 import { api, type Session, type SessionType, type Suggestion } from './lib/api';
 
@@ -17,11 +17,18 @@ function App() {
     const [modalOpen, setModalOpen] = useState(false);
     const [notice, setNotice] = useState('');
     const [saving, setSaving] = useState(false);
+    const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
+    const autoRefreshTimer = useRef<number | null>(null);
 
     const activeHint = useMemo(() => {
         if (!activeSession) return 'Choose or create a session to start.';
         return starterByType[activeSession.type];
     }, [activeSession]);
+
+    const pendingSuggestions = useMemo(
+        () => suggestions.filter((suggestion) => suggestion.state === 'pending'),
+        [suggestions]
+    );
 
     async function loadSessions() {
         const data = await api.listSessions(search, filterType);
@@ -32,10 +39,21 @@ function App() {
         void loadSessions();
     }, [search, filterType]);
 
+    async function refreshSuggestions(sessionId: number, focusText?: string) {
+        const generated = await api.generateSuggestions(sessionId, { refresh: true, focusText });
+        if (generated.unavailable) {
+            setNotice(generated.message);
+            return;
+        }
+        setSuggestions(generated.suggestions);
+        setNotice(focusText ? 'AI suggestions updated for highlighted text.' : 'AI suggestions refreshed.');
+    }
+
     async function openSession(id: number) {
         const data = await api.getSession(id);
         setActiveSession(data.session);
         setSuggestions(data.suggestions);
+        setSelectionRange(null);
         setNotice('');
     }
 
@@ -58,13 +76,7 @@ function App() {
         setActiveSession(updated);
         await loadSessions();
 
-        const generated = await api.generateSuggestions(updated.id);
-        if (generated.unavailable) {
-            setNotice(generated.message);
-        } else {
-            setSuggestions(generated.suggestions);
-            setNotice('AI suggestions refreshed.');
-        }
+        await refreshSuggestions(updated.id);
 
         setSaving(false);
     }
@@ -74,16 +86,63 @@ function App() {
         if (activeSession?.id === id) {
             setActiveSession(null);
             setSuggestions([]);
+            setSelectionRange(null);
         }
         await loadSessions();
     }
 
     async function setSuggestionState(id: number, state: 'accepted' | 'dismissed') {
-        await api.updateSuggestionState(id, state);
         if (!activeSession) return;
-        const data = await api.getSession(activeSession.id);
-        setSuggestions(data.suggestions);
+        const selectedSuggestion = suggestions.find((item) => item.id === id);
+        if (state === 'accepted' && selectedSuggestion) {
+            const suggestionLine = `\n- ${selectedSuggestion.text}`;
+            if (
+                selectionRange &&
+                selectionRange.start !== selectionRange.end &&
+                selectionRange.end <= activeSession.content.length
+            ) {
+                const before = activeSession.content.slice(0, selectionRange.end);
+                const after = activeSession.content.slice(selectionRange.end);
+                const updatedContent = `${before}${suggestionLine}${after}`;
+                const updatedSession = await api.updateSession(activeSession.id, { content: updatedContent });
+                setActiveSession(updatedSession);
+            } else {
+                const nextContent = activeSession.content.includes('\nAccepted AI suggestions\n')
+                    ? `${activeSession.content}${suggestionLine}`
+                    : `${activeSession.content.trimEnd()}\n\nAccepted AI suggestions\n${suggestionLine}`;
+                const updatedSession = await api.updateSession(activeSession.id, { content: nextContent });
+                setActiveSession(updatedSession);
+            }
+        }
+
+        await api.updateSuggestionState(id, state);
+        await refreshSuggestions(activeSession.id, selectionRange ? activeSession.content.slice(selectionRange.start, selectionRange.end) : undefined);
+        await loadSessions();
     }
+
+    useEffect(() => {
+        if (!activeSession || activeSession.type !== 'brainstorm') {
+            return;
+        }
+
+        if (autoRefreshTimer.current) {
+            window.clearTimeout(autoRefreshTimer.current);
+        }
+
+        autoRefreshTimer.current = window.setTimeout(() => {
+            const focusText =
+                selectionRange && selectionRange.start !== selectionRange.end
+                    ? activeSession.content.slice(selectionRange.start, selectionRange.end)
+                    : undefined;
+            void refreshSuggestions(activeSession.id, focusText);
+        }, 1400);
+
+        return () => {
+            if (autoRefreshTimer.current) {
+                window.clearTimeout(autoRefreshTimer.current);
+            }
+        };
+    }, [activeSession?.id, activeSession?.type, activeSession?.content, selectionRange?.start, selectionRange?.end]);
 
     return (
         <div className="app">
@@ -108,15 +167,20 @@ function App() {
 
                 <div className="session-list">
                     {sessions.map((session) => (
-                        <button
-                            key={session.id}
-                            className={`session-card ${activeSession?.id === session.id ? 'active' : ''}`}
-                            onClick={() => openSession(session.id)}
-                        >
-                            <strong>{session.title}</strong>
-                            <span>{session.type}</span>
-                            <small>{new Date(session.updated_at).toLocaleString()}</small>
-                        </button>
+                        <div key={session.id} className={`session-card ${activeSession?.id === session.id ? 'active' : ''}`}>
+                            <button className="session-main" onClick={() => openSession(session.id)}>
+                                <strong>{session.title}</strong>
+                                <span>{session.type}</span>
+                                <small>{new Date(session.updated_at).toLocaleString()}</small>
+                            </button>
+                            <button
+                                className="session-delete"
+                                title="Delete session"
+                                onClick={() => removeSession(session.id)}
+                            >
+                                Delete
+                            </button>
+                        </div>
                     ))}
                 </div>
             </aside>
@@ -131,7 +195,7 @@ function App() {
                                     Export PDF
                                 </a>
                                 <button onClick={saveSession} disabled={saving}>
-                                    {saving ? 'Saving...' : 'Save + Refresh AI'}
+                                    {saving ? 'Saving...' : 'Save'}
                                 </button>
                                 <button onClick={() => removeSession(activeSession.id)} className="danger">
                                     Delete
@@ -151,6 +215,12 @@ function App() {
                                 className="editor"
                                 value={activeSession.content}
                                 onChange={(event) => setActiveSession({ ...activeSession, content: event.target.value })}
+
+                                onSelect={(event) => {
+                                    const target = event.currentTarget;
+                                    setSelectionRange({ start: target.selectionStart, end: target.selectionEnd });
+                                }}
+
                                 placeholder="Start writing your ideas here..."
                             />
                         </>
@@ -162,19 +232,23 @@ function App() {
                 <aside className="assistant-pane">
                     <h3>AI Copilot</h3>
                     {notice && <div className="notice">{notice}</div>}
-                    {!suggestions.length && <p className="muted">No suggestions yet. Save to trigger AI analysis.</p>}
-                    {suggestions.map((suggestion) => (
-                        <div key={suggestion.id} className="suggestion-card">
-                            <span className="chip">{suggestion.category}</span>
-                            <p>{suggestion.text}</p>
-                            <div className="actions">
-                                <button onClick={() => setSuggestionState(suggestion.id, 'accepted')}>Accept</button>
-                                <button className="ghost" onClick={() => setSuggestionState(suggestion.id, 'dismissed')}>
-                                    Dismiss
-                                </button>
+                    {!pendingSuggestions.length && (
+                        <p className="muted">Suggestions refresh while you type in brainstorm mode.</p>
+                    )}
+                    <div className="suggestions-list">
+                        {pendingSuggestions.map((suggestion) => (
+                            <div key={suggestion.id} className="suggestion-card">
+                                <span className="chip">{suggestion.category}</span>
+                                <p>{suggestion.text}</p>
+                                <div className="actions">
+                                    <button onClick={() => setSuggestionState(suggestion.id, 'accepted')}>Accept</button>
+                                    <button className="ghost" onClick={() => setSuggestionState(suggestion.id, 'dismissed')}>
+                                        Dismiss
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </aside>
             </main>
 

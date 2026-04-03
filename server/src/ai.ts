@@ -11,6 +11,7 @@ export async function generateSuggestions(input: {
     content: string;
     goal?: string | null;
     documentText?: string | null;
+    focusText?: string | null;
 }) {
     if (!process.env.OPENAI_API_KEY || !process.env.OPENAI_MODEL) {
         return {
@@ -26,10 +27,15 @@ export async function generateSuggestions(input: {
         `Title: ${input.title}`,
         `Goal: ${input.goal ?? "none"}`,
         `Content:\n${input.content || "(empty)"}`,
-        input.documentText ? `Document excerpt:\n${input.documentText.slice(0, 4000)}` : ""
+        input.documentText ? `Document excerpt:\n${input.documentText.slice(0, 4000)}` : "",
+        input.focusText ? `User highlighted this section:\n${input.focusText}` : ""
     ]
         .filter(Boolean)
         .join("\n\n");
+
+    const focusInstruction = input.focusText
+        ? "Prioritize suggestions that directly improve or expand the highlighted section."
+        : "Generate suggestions based on the overall note content.";
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -48,7 +54,7 @@ export async function generateSuggestions(input: {
                 },
                 {
                     role: "user",
-                    content: `${context}\n\nReturn JSON array only like [{\"category\":\"extension\",\"text\":\"...\"}]`
+                    content: `${focusInstruction}\n\n${context}\n\nReturn JSON array only like [{\"category\":\"extension\",\"text\":\"...\"}]`
                 }
             ]
         })

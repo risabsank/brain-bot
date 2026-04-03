@@ -49,9 +49,10 @@ export const api = {
     updateSession: (id: number, payload: Partial<{ title: string; content: string; goal: string; documentText: string }>) =>
         request<Session>(`/sessions/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
     deleteSession: (id: number) => request<void>(`/sessions/${id}`, { method: 'DELETE' }),
-    generateSuggestions: (id: number) =>
+    generateSuggestions: (id: number, payload?: { refresh?: boolean; focusText?: string }) =>
         request<{ unavailable: boolean; message: string; suggestions: Suggestion[] }>(`/sessions/${id}/suggestions`, {
-            method: 'POST'
+            method: 'POST',
+            body: JSON.stringify(payload ?? {})
         }),
     updateSuggestionState: (id: number, state: 'pending' | 'accepted' | 'dismissed') =>
         request<Suggestion>(`/suggestions/${id}`, { method: 'PATCH', body: JSON.stringify({ state }) }),
