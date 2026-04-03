@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { NewSessionModal } from './components/NewSessionModal';
 import { api, type Session, type SessionType, type Suggestion } from './lib/api';
 
@@ -18,7 +18,12 @@ function App() {
     const [notice, setNotice] = useState('');
     const [saving, setSaving] = useState(false);
     const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
+    const [isAiEnabled, setIsAiEnabled] = useState(true);
+    const [isAssistantVisible, setIsAssistantVisible] = useState(true);
+    const [isAutoPolling, setIsAutoPolling] = useState(true);
+    const [pollingIntervalMs, setPollingIntervalMs] = useState(1400);
     const autoRefreshTimer = useRef<number | null>(null);
+    const editorRef = useRef<HTMLTextAreaElement | null>(null);
 
     const activeHint = useMemo(() => {
         if (!activeSession) return 'Choose or create a session to start.';
@@ -116,12 +121,53 @@ function App() {
         }
 
         await api.updateSuggestionState(id, state);
-        await refreshSuggestions(activeSession.id, selectionRange ? activeSession.content.slice(selectionRange.start, selectionRange.end) : undefined);
+        setSuggestions((current) => current.map((suggestion) => (suggestion.id === id ? { ...suggestion, state } : suggestion)));
         await loadSessions();
     }
 
+    function applyEditorValue(nextValue: string, nextCursor: number) {
+        if (!activeSession) return;
+        setActiveSession({ ...activeSession, content: nextValue });
+        window.requestAnimationFrame(() => {
+            if (editorRef.current) {
+                editorRef.current.selectionStart = nextCursor;
+                editorRef.current.selectionEnd = nextCursor;
+            }
+        });
+    }
+
+    function handleEditorKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+        if (!activeSession) return;
+        const target = event.currentTarget;
+        const { selectionStart, selectionEnd, value } = target;
+
+        if (event.key === 'Tab') {
+            event.preventDefault();
+            const indent = '    ';
+            const nextValue = `${value.slice(0, selectionStart)}${indent}${value.slice(selectionEnd)}`;
+            applyEditorValue(nextValue, selectionStart + indent.length);
+            return;
+        }
+
+        if (event.key !== 'Enter') {
+            return;
+        }
+
+        const lineStart = value.lastIndexOf('\n', selectionStart - 1) + 1;
+        const currentLine = value.slice(lineStart, selectionStart);
+        const match = currentLine.match(/^(\s*)([-*]|\d+\.)\s+/);
+        if (!match) {
+            return;
+        }
+
+        event.preventDefault();
+        const bulletPrefix = `${match[1]}${match[2]} `;
+        const nextValue = `${value.slice(0, selectionStart)}\n${bulletPrefix}${value.slice(selectionEnd)}`;
+        applyEditorValue(nextValue, selectionStart + bulletPrefix.length + 1);
+    }
+
     useEffect(() => {
-        if (!activeSession || activeSession.type !== 'brainstorm') {
+        if (!activeSession || activeSession.type !== 'brainstorm' || !isAiEnabled || !isAutoPolling) {
             return;
         }
 
@@ -129,21 +175,30 @@ function App() {
             window.clearTimeout(autoRefreshTimer.current);
         }
 
+        const hasSelection = selectionRange && selectionRange.start !== selectionRange.end;
+        if (hasSelection) {
+            return;
+        }
+
         autoRefreshTimer.current = window.setTimeout(() => {
-            const focusText =
-                selectionRange && selectionRange.start !== selectionRange.end
-                    ? activeSession.content.slice(selectionRange.start, selectionRange.end)
-                    : undefined;
-            void refreshSuggestions(activeSession.id, focusText);
-        }, 1400);
+            void refreshSuggestions(activeSession.id);
+        }, pollingIntervalMs);
 
         return () => {
             if (autoRefreshTimer.current) {
                 window.clearTimeout(autoRefreshTimer.current);
             }
         };
-    }, [activeSession?.id, activeSession?.type, activeSession?.content, selectionRange?.start, selectionRange?.end]);
-
+    }, [
+        activeSession?.id,
+        activeSession?.type,
+        activeSession?.content,
+        isAiEnabled,
+        isAutoPolling,
+        pollingIntervalMs,
+        selectionRange?.start,
+        selectionRange?.end
+    ]);
     return (
         <div className="app">
             <aside className="sidebar">
@@ -185,7 +240,7 @@ function App() {
                 </div>
             </aside>
 
-            <main className="workspace">
+            <main className={`workspace ${!isAssistantVisible ? 'no-assistant' : ''}`}>
                 <div className="editor-pane">
                     <div className="toolbar">
                         <p>{activeHint}</p>
@@ -196,6 +251,9 @@ function App() {
                                 </a>
                                 <button onClick={saveSession} disabled={saving}>
                                     {saving ? 'Saving...' : 'Save'}
+                                </button>
+                                <button onClick={() => setIsAssistantVisible((visible) => !visible)}>
+                                    {isAssistantVisible ? 'Hide AI' : 'Show AI'}
                                 </button>
                                 <button onClick={() => removeSession(activeSession.id)} className="danger">
                                     Delete
@@ -212,10 +270,11 @@ function App() {
                                 onChange={(event) => setActiveSession({ ...activeSession, title: event.target.value })}
                             />
                             <textarea
+                                ref={editorRef}
                                 className="editor"
                                 value={activeSession.content}
                                 onChange={(event) => setActiveSession({ ...activeSession, content: event.target.value })}
-
+                                onKeyDown={handleEditorKeyDown}
                                 onSelect={(event) => {
                                     const target = event.currentTarget;
                                     setSelectionRange({ start: target.selectionStart, end: target.selectionEnd });
@@ -229,27 +288,70 @@ function App() {
                     )}
                 </div>
 
-                <aside className="assistant-pane">
-                    <h3>AI Copilot</h3>
-                    {notice && <div className="notice">{notice}</div>}
-                    {!pendingSuggestions.length && (
-                        <p className="muted">Suggestions refresh while you type in brainstorm mode.</p>
-                    )}
-                    <div className="suggestions-list">
-                        {pendingSuggestions.map((suggestion) => (
-                            <div key={suggestion.id} className="suggestion-card">
-                                <span className="chip">{suggestion.category}</span>
-                                <p>{suggestion.text}</p>
-                                <div className="actions">
-                                    <button onClick={() => setSuggestionState(suggestion.id, 'accepted')}>Accept</button>
-                                    <button className="ghost" onClick={() => setSuggestionState(suggestion.id, 'dismissed')}>
-                                        Dismiss
-                                    </button>
+                {isAssistantVisible && (
+                    <aside className="assistant-pane">
+                        <h3>AI Copilot</h3>
+                        <div className="assistant-controls">
+                            <label className="toggle">
+                                <input
+                                    type="checkbox"
+                                    checked={isAiEnabled}
+                                    onChange={(event) => setIsAiEnabled(event.target.checked)}
+                                />
+                                AI enabled
+                            </label>
+                            <label className="toggle">
+                                <input
+                                    type="checkbox"
+                                    checked={isAutoPolling}
+                                    disabled={!isAiEnabled}
+                                    onChange={(event) => setIsAutoPolling(event.target.checked)}
+                                />
+                                Auto polling
+                            </label>
+                            <label className="interval-input">
+                                Poll every
+                                <input
+                                    type="number"
+                                    min={500}
+                                    step={100}
+                                    value={pollingIntervalMs}
+                                    disabled={!isAiEnabled || !isAutoPolling}
+                                    onChange={(event) => setPollingIntervalMs(Math.max(500, Number(event.target.value) || 500))}
+                                />
+                                ms
+                            </label>
+                            <button
+                                disabled={!activeSession || !isAiEnabled}
+                                onClick={() => refreshSuggestions(activeSession!.id)}
+                            >
+                                Refresh now
+                            </button>
+                        </div>
+                        {notice && <div className="notice">{notice}</div>}
+                        {!pendingSuggestions.length && (
+                            <p className="muted">
+                                {isAiEnabled
+                                    ? 'Suggestions refresh while you type in brainstorm mode.'
+                                    : 'AI Copilot is disabled.'}
+                            </p>
+                        )}
+                        <div className="suggestions-list">
+                            {pendingSuggestions.map((suggestion) => (
+                                <div key={suggestion.id} className="suggestion-card">
+                                    <span className="chip">{suggestion.category}</span>
+                                    <p>{suggestion.text}</p>
+                                    <div className="actions">
+                                        <button onClick={() => setSuggestionState(suggestion.id, 'accepted')}>Accept</button>
+                                        <button className="ghost" onClick={() => setSuggestionState(suggestion.id, 'dismissed')}>
+                                            Dismiss
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
-                </aside>
+                            ))}
+                        </div>
+                    </aside>
+                )}
             </main>
 
             <NewSessionModal open={modalOpen} onClose={() => setModalOpen(false)} onCreate={createSession} />
