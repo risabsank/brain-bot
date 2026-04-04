@@ -17,6 +17,7 @@ function App() {
     const [modalOpen, setModalOpen] = useState(false);
     const [notice, setNotice] = useState('');
     const [saving, setSaving] = useState(false);
+    const [generatingSpec, setGeneratingSpec] = useState(false);
     const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
     const [isAiEnabled, setIsAiEnabled] = useState(true);
     const [isAssistantVisible, setIsAssistantVisible] = useState(true);
@@ -84,6 +85,21 @@ function App() {
         await refreshSuggestions(updated.id);
 
         setSaving(false);
+    }
+
+    async function generateSpec() {
+        if (!activeSession || activeSession.type !== 'project-planning') return;
+        setGeneratingSpec(true);
+        const generated = await api.generateProjectSpec(activeSession.id);
+
+        const existing = activeSession.content.trimEnd();
+        const nextContent = generated.spec
+            ? `${existing}${existing ? '\n\n' : ''}${generated.spec}`
+            : existing;
+        const updatedSession = await api.updateSession(activeSession.id, { content: nextContent });
+        setActiveSession(updatedSession);
+        setNotice(generated.message || 'Project spec generated and inserted below your notes.');
+        setGeneratingSpec(false);
     }
 
     async function removeSession(id: number) {
@@ -167,7 +183,12 @@ function App() {
     }
 
     useEffect(() => {
-        if (!activeSession || activeSession.type !== 'brainstorm' || !isAiEnabled || !isAutoPolling) {
+        if (
+            !activeSession ||
+            !['brainstorm', 'project-planning'].includes(activeSession.type) ||
+            !isAiEnabled ||
+            !isAutoPolling
+        ) {
             return;
         }
 
@@ -252,6 +273,11 @@ function App() {
                                 <button onClick={saveSession} disabled={saving}>
                                     {saving ? 'Saving...' : 'Save'}
                                 </button>
+                                {activeSession.type === 'project-planning' && (
+                                    <button onClick={generateSpec} disabled={generatingSpec}>
+                                        {generatingSpec ? 'Generating...' : 'Generate spec'}
+                                    </button>
+                                )}
                                 <button onClick={() => setIsAssistantVisible((visible) => !visible)}>
                                     {isAssistantVisible ? 'Hide AI' : 'Show AI'}
                                 </button>
@@ -332,7 +358,7 @@ function App() {
                         {!pendingSuggestions.length && (
                             <p className="muted">
                                 {isAiEnabled
-                                    ? 'Suggestions refresh while you type in brainstorm mode.'
+                                    ? 'Suggestions refresh while you type in brainstorming and project-planning modes.'
                                     : 'AI Copilot is disabled.'}
                             </p>
                         )}

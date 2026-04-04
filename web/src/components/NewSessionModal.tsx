@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import type { SessionType } from '../lib/api';
 
 const modeHelper: Record<SessionType, string> = {
@@ -14,6 +14,7 @@ interface Props {
 }
 
 export function NewSessionModal({ open, onClose, onCreate }: Props) {
+    const [sessionType, setSessionType] = useState<SessionType>('brainstorm');
     if (!open) return null;
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -40,7 +41,7 @@ export function NewSessionModal({ open, onClose, onCreate }: Props) {
 
                 <label>
                     Session type
-                    <select name="type" defaultValue="brainstorm">
+                    <select name="type" value={sessionType} onChange={(event) => setSessionType(event.target.value as SessionType)}>
                         <option value="brainstorm">Brainstorm</option>
                         <option value="project-planning">Project Planning</option>
                         <option value="prompted-brainstorming">Prompted Brainstorming</option>
@@ -49,7 +50,16 @@ export function NewSessionModal({ open, onClose, onCreate }: Props) {
 
                 <label>
                     Goal (optional)
-                    <input name="goal" placeholder="What are you trying to achieve?" />
+                    {sessionType === 'project-planning' ? 'Planning prompt' : 'Goal (optional)'}
+                    <input
+                        name="goal"
+                        required={sessionType === 'project-planning'}
+                        placeholder={
+                            sessionType === 'project-planning'
+                                ? 'What kind of plan are you trying to create?'
+                                : 'What are you trying to achieve?'
+                        }
+                    />
                 </label>
 
                 <label>
@@ -57,7 +67,7 @@ export function NewSessionModal({ open, onClose, onCreate }: Props) {
                     <textarea name="documentText" rows={4} placeholder="Paste a short excerpt for document-informed brainstorming." />
                 </label>
 
-                <p className="helper">Tip: Brainstorm mode is fastest for quick ideation. {modeHelper.brainstorm}</p>
+                <p className="helper">Tip: {modeHelper[sessionType]}</p>
 
                 <div className="actions">
                     <button type="button" onClick={onClose} className="ghost">

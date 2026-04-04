@@ -3,7 +3,7 @@ import cors from "cors";
 import express from "express";
 import PDFDocument from "pdfkit";
 import { z } from "zod";
-import { generateSuggestions } from "./ai.js";
+import { generateProjectSpec, generateSuggestions } from "./ai.js";
 import { db, initDb } from "./db.js";
 import type { Session, SessionType, SuggestionCategory } from "./types.js";
 
@@ -197,6 +197,23 @@ app.patch("/suggestions/:id", (req, res) => {
     db.prepare("UPDATE suggestions SET state = ? WHERE id = ?").run(parsed.data.state, req.params.id);
     const suggestion = db.prepare("SELECT * FROM suggestions WHERE id = ?").get(req.params.id);
     res.json(suggestion);
+});
+
+app.post("/sessions/:id/spec", async (req, res) => {
+    const session = db.prepare("SELECT * FROM sessions WHERE id = ?").get(req.params.id) as Session | undefined;
+    if (!session) {
+        res.status(404).json({ error: "Session not found" });
+        return;
+    }
+
+    const generated = await generateProjectSpec({
+        title: session.title,
+        content: session.content,
+        goal: session.goal,
+        documentText: session.document_text
+    });
+
+    res.status(200).json(generated);
 });
 
 app.get("/sessions/:id/export", (req, res) => {

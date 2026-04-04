@@ -56,5 +56,10 @@ export const api = {
         }),
     updateSuggestionState: (id: number, state: 'pending' | 'accepted' | 'dismissed') =>
         request<Suggestion>(`/suggestions/${id}`, { method: 'PATCH', body: JSON.stringify({ state }) }),
+    generateProjectSpec: (id: number) =>
+        request<{ unavailable: boolean; message: string; spec: string }>(`/sessions/${id}/spec`, {
+            method: 'POST',
+            body: JSON.stringify({})
+        }),
     exportPdfUrl: (id: number) => `${API_BASE}/sessions/${id}/export`
 };
