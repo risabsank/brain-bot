@@ -4,16 +4,24 @@ import type { SessionType } from '../lib/api';
 const modeHelper: Record<SessionType, string> = {
     brainstorm: 'Explore ideas freely with AI provocations and pathways.',
     'project-planning': 'Build a guided scope + roadmap with milestones and risks.',
-    'prompted-brainstorming': 'Use a source document + goal for strategic options.'
+    'prompted-brainstorming': 'Use a prior brainstorm, source text, and optional prompt for strategic options.',
+    'reading-assistance': 'Load reading material and get simpler explanations for highlighted passages.'
 };
 
 interface Props {
     open: boolean;
     onClose: () => void;
-    onCreate: (payload: { title: string; type: SessionType; goal?: string; documentText?: string }) => Promise<void>;
+    brainstormSessions: Array<{ id: number; title: string }>;
+    onCreate: (payload: {
+        title: string;
+        type: SessionType;
+        goal?: string;
+        documentText?: string;
+        sourceSessionId?: number;
+    }) => Promise<void>;
 }
 
-export function NewSessionModal({ open, onClose, onCreate }: Props) {
+export function NewSessionModal({ open, onClose, onCreate, brainstormSessions }: Props) {
     const [sessionType, setSessionType] = useState<SessionType>('brainstorm');
     if (!open) return null;
 
@@ -26,7 +34,8 @@ export function NewSessionModal({ open, onClose, onCreate }: Props) {
             title: String(form.get('title')),
             type,
             goal: String(form.get('goal') || ''),
-            documentText: String(form.get('documentText') || '')
+            documentText: String(form.get('documentText') || ''),
+            sourceSessionId: form.get('sourceSessionId') ? Number(form.get('sourceSessionId')) : undefined
         });
     }
 
@@ -45,19 +54,39 @@ export function NewSessionModal({ open, onClose, onCreate }: Props) {
                         <option value="brainstorm">Brainstorm</option>
                         <option value="project-planning">Project Planning</option>
                         <option value="prompted-brainstorming">Prompted Brainstorming</option>
+                        <option value="reading-assistance">Reading Assistance</option>
                     </select>
                 </label>
 
+                {sessionType === 'prompted-brainstorming' && (
+                    <label>
+                        Source brainstorm session (optional)
+                        <select name="sourceSessionId" defaultValue="">
+                            <option value="">None</option>
+                            {brainstormSessions.map((session) => (
+                                <option key={session.id} value={session.id}>
+                                    {session.title}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                )}
+
                 <label>
-                    Goal (optional)
-                    {sessionType === 'project-planning' ? 'Planning prompt' : 'Goal (optional)'}
+                    {sessionType === 'project-planning'
+                        ? 'Planning prompt'
+                        : sessionType === 'prompted-brainstorming'
+                            ? 'Optional prompt'
+                            : 'Goal (optional)'}
                     <input
                         name="goal"
                         required={sessionType === 'project-planning'}
                         placeholder={
                             sessionType === 'project-planning'
                                 ? 'What kind of plan are you trying to create?'
-                                : 'What are you trying to achieve?'
+                                : sessionType === 'prompted-brainstorming'
+                                    ? 'Optional prompt for this brainstorm'
+                                    : 'What are you trying to achieve?'
                         }
                     />
                 </label>

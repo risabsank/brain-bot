@@ -34,20 +34,18 @@ export async function generateSuggestions(input: {
         .join("\n\n");
 
     const focusInstruction = input.focusText
-        ? input.type === "reading-assistance"
-            ? "Explain the highlighted text in simpler language and include brief clarifying context for the reader."
-            : "Prioritize suggestions that directly improve or expand the highlighted section."
-        : input.type === "reading-assistance"
-            ? "Generate helpful reading-assistance suggestions based on the document and notes."
-            : "Generate suggestions based on the overall note content.";
+        ? "Prioritize suggestions that directly improve or expand the highlighted section."
+        : "Generate suggestions based on the overall note content.";
 
     const typeInstructionBySession: Record<SessionType, string> = {
         brainstorm:
             "Treat this as open-ended ideation. Offer creative extensions, provocative challenges, and alternatives.",
         "project-planning":
-            "Treat this as project-planning. Prioritize feature ideas, scope improvements, milestone sequencing, risk flags, and assumptions to challenge.",
+            "Treat this as document-informed ideation. Anchor suggestions in the provided goal and excerpt.",
+        "reading-assistance":
+            "Treat this as reading assistance. Explain difficult sections simply, define terms, and offer concise context.",
         "prompted-brainstorming":
-            "Treat this as document-informed ideation. Anchor suggestions in the provided goal and excerpt."
+            ""
     };
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",

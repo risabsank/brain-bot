@@ -1,4 +1,4 @@
-export type SessionType = 'brainstorm' | 'project-planning' | 'prompted-brainstorming';
+export type SessionType = 'brainstorm' | 'project-planning' | 'prompted-brainstorming' | 'reading-assistance';
 
 export interface Session {
     id: number;

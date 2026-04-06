@@ -5,7 +5,8 @@ import { api, type Session, type SessionType, type Suggestion } from './lib/api'
 const starterByType: Record<SessionType, string> = {
     brainstorm: 'Capture rough ideas. Save to get expansions, critiques, and alternative paths.',
     'project-planning': 'Structure your plan: problem, goals, users, constraints, milestones, risks.',
-    'prompted-brainstorming': 'Use your source text + outcome goal to generate strategic responses.'
+    'prompted-brainstorming': 'Use your source text + optional prompt to generate strategic responses.',
+    'reading-assistance': 'Paste a link or notes above, keep reading notes below, then highlight text for simple explanations.'
 };
 
 function App() {
@@ -63,8 +64,20 @@ function App() {
         setNotice('');
     }
 
-    async function createSession(payload: { title: string; type: SessionType; goal?: string; documentText?: string }) {
-        const session = await api.createSession(payload);
+    async function createSession(payload: {
+        title: string;
+        type: SessionType;
+        goal?: string;
+        documentText?: string;
+        sourceSessionId?: number;
+    }) {
+        const sourceSession = payload.sourceSessionId ? await api.getSession(payload.sourceSessionId) : null;
+        const session = await api.createSession({
+            title: payload.title,
+            type: payload.type,
+            goal: payload.goal,
+            documentText: payload.documentText || sourceSession?.session.content || ''
+        });
         setModalOpen(false);
         await loadSessions();
         await openSession(session.id);
@@ -183,12 +196,7 @@ function App() {
     }
 
     useEffect(() => {
-        if (
-            !activeSession ||
-            !['brainstorm', 'project-planning'].includes(activeSession.type) ||
-            !isAiEnabled ||
-            !isAutoPolling
-        ) {
+        if (!activeSession || !['brainstorm', 'project-planning'].includes(activeSession.type) || !isAiEnabled || !isAutoPolling) {
             return;
         }
 
@@ -239,6 +247,7 @@ function App() {
                     <option value="brainstorm">Brainstorm</option>
                     <option value="project-planning">Project Planning</option>
                     <option value="prompted-brainstorming">Prompted Brainstorming</option>
+                    <option value="reading-assistance">Reading Assistance</option>
                 </select>
 
                 <div className="session-list">
@@ -295,19 +304,67 @@ function App() {
                                 value={activeSession.title}
                                 onChange={(event) => setActiveSession({ ...activeSession, title: event.target.value })}
                             />
-                            <textarea
-                                ref={editorRef}
-                                className="editor"
-                                value={activeSession.content}
-                                onChange={(event) => setActiveSession({ ...activeSession, content: event.target.value })}
-                                onKeyDown={handleEditorKeyDown}
-                                onSelect={(event) => {
-                                    const target = event.currentTarget;
-                                    setSelectionRange({ start: target.selectionStart, end: target.selectionEnd });
-                                }}
-
-                                placeholder="Start writing your ideas here..."
-                            />
+                            {activeSession.type === 'reading-assistance' ? (
+                                <div className="reading-layout">
+                                    <div className="reading-document">
+                                        <h3>Document</h3>
+                                        <input
+                                            placeholder="Paste article or YouTube link"
+                                            value={activeSession.goal ?? ''}
+                                            onChange={(event) => setActiveSession({ ...activeSession, goal: event.target.value })}
+                                        />
+                                        <textarea
+                                            className="reading-doc-text"
+                                            value={activeSession.document_text ?? ''}
+                                            onChange={(event) => setActiveSession({ ...activeSession, document_text: event.target.value })}
+                                            placeholder="Paste excerpt, article notes, or PDF text here..."
+                                        />
+                                        <label className="file-upload">
+                                            Upload PDF (optional)
+                                            <input
+                                                type="file"
+                                                accept="application/pdf"
+                                                onChange={(event) => {
+                                                    const file = event.target.files?.[0];
+                                                    if (!file) return;
+                                                    const currentText = activeSession.document_text?.trim() ?? '';
+                                                    const uploadNote = `Uploaded PDF: ${file.name}`;
+                                                    const nextDocumentText = currentText ? `${currentText}\n${uploadNote}` : uploadNote;
+                                                    setActiveSession({ ...activeSession, document_text: nextDocumentText });
+                                                }}
+                                            />
+                                        </label>
+                                    </div>
+                                    <div className="reading-notes">
+                                        <h3>Notes</h3>
+                                        <textarea
+                                            ref={editorRef}
+                                            className="editor"
+                                            value={activeSession.content}
+                                            onChange={(event) => setActiveSession({ ...activeSession, content: event.target.value })}
+                                            onKeyDown={handleEditorKeyDown}
+                                            onSelect={(event) => {
+                                                const target = event.currentTarget;
+                                                setSelectionRange({ start: target.selectionStart, end: target.selectionEnd });
+                                            }}
+                                            placeholder="Take notes while reading. Highlight text to get simpler explanations."
+                                        />
+                                    </div>
+                                </div>
+                            ) : (
+                                <textarea
+                                    ref={editorRef}
+                                    className="editor"
+                                    value={activeSession.content}
+                                    onChange={(event) => setActiveSession({ ...activeSession, content: event.target.value })}
+                                    onKeyDown={handleEditorKeyDown}
+                                    onSelect={(event) => {
+                                        const target = event.currentTarget;
+                                        setSelectionRange({ start: target.selectionStart, end: target.selectionEnd });
+                                    }}
+                                    placeholder="Start writing your ideas here..."
+                                />
+                            )}
                         </>
                     ) : (
                         <div className="empty-state">Create or open a session to start ideating.</div>
@@ -358,7 +415,7 @@ function App() {
                         {!pendingSuggestions.length && (
                             <p className="muted">
                                 {isAiEnabled
-                                    ? 'Suggestions refresh while you type in brainstorming and project-planning modes.'
+                                    ? 'Suggestions auto-refresh while you type in brainstorming and project-planning modes.'
                                     : 'AI Copilot is disabled.'}
                             </p>
                         )}
@@ -380,7 +437,12 @@ function App() {
                 )}
             </main>
 
-            <NewSessionModal open={modalOpen} onClose={() => setModalOpen(false)} onCreate={createSession} />
+            <NewSessionModal
+                open={modalOpen}
+                onClose={() => setModalOpen(false)}
+                onCreate={createSession}
+                brainstormSessions={sessions.filter((session) => session.type === 'brainstorm')}
+            />
         </div>
     );
 }

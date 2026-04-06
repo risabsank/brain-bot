@@ -17,7 +17,7 @@ app.use(express.json({ limit: "5mb" }));
 
 const createSessionSchema = z.object({
     title: z.string().min(1),
-    type: z.enum(["brainstorm", "project-planning", "prompted-brainstorming"]),
+    type: z.enum(["brainstorm", "project-planning", "prompted-brainstorming", "reading-assistance"]),
     goal: z.string().optional().nullable(),
     documentText: z.string().optional().nullable()
 });
