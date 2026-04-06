@@ -233,16 +233,17 @@ function App() {
             <aside className="sidebar">
                 <div className="sidebar-header">
                     <h1>Brain Bot</h1>
-                    <button onClick={() => setModalOpen(true)}>+ New</button>
+                    <button className="primary-action" onClick={() => setModalOpen(true)}>+ New</button>
                 </div>
 
                 <input
+                    className="search-input"
                     placeholder="Search by title/content"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                 />
 
-                <select value={filterType} onChange={(event) => setFilterType(event.target.value)}>
+                <select className="filter-select" value={filterType} onChange={(event) => setFilterType(event.target.value)}>
                     <option value="all">All types</option>
                     <option value="brainstorm">Brainstorm</option>
                     <option value="project-planning">Project Planning</option>
@@ -259,7 +260,7 @@ function App() {
                                 <small>{new Date(session.updated_at).toLocaleString()}</small>
                             </button>
                             <button
-                                className="session-delete"
+                                className="session-delete danger"
                                 title="Delete session"
                                 onClick={() => removeSession(session.id)}
                             >
@@ -279,11 +280,11 @@ function App() {
                                 <a href={api.exportPdfUrl(activeSession.id)} target="_blank" rel="noreferrer">
                                     Export PDF
                                 </a>
-                                <button onClick={saveSession} disabled={saving}>
+                                <button className="primary-action" onClick={saveSession} disabled={saving}>
                                     {saving ? 'Saving...' : 'Save'}
                                 </button>
                                 {activeSession.type === 'project-planning' && (
-                                    <button onClick={generateSpec} disabled={generatingSpec}>
+                                    <button className="primary-action" onClick={generateSpec} disabled={generatingSpec}>
                                         {generatingSpec ? 'Generating...' : 'Generate spec'}
                                     </button>
                                 )}
@@ -405,6 +406,7 @@ function App() {
                                 ms
                             </label>
                             <button
+                                className="primary-action"
                                 disabled={!activeSession || !isAiEnabled}
                                 onClick={() => refreshSuggestions(activeSession!.id)}
                             >
