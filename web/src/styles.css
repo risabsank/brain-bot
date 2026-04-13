@@ -20,6 +20,10 @@ body {
     min-height: 100vh;
 }
 
+.app.sidebar-collapsed {
+    grid-template-columns: 96px 1fr;
+}
+
 .sidebar {
     border-right: 1px solid #e4e9f3;
     padding: 1.2rem 1rem;
@@ -31,10 +35,15 @@ body {
     min-height: 0;
 }
 
+.sidebar.collapsed {
+    align-items: center;
+}
+
 .sidebar-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.5rem;
 }
 
 h1 {
@@ -136,6 +145,10 @@ a:hover {
 
 .workspace.no-assistant {
     grid-template-columns: 1fr;
+}
+
+.workspace.assistant-collapsed {
+    grid-template-columns: 1fr 84px;
 }
 
 .editor-pane,
@@ -306,6 +319,18 @@ a:hover {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+.assistant-pane.collapsed {
+    align-items: center;
+    justify-content: center;
+}
+
+.assistant-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
 }
 
 .assistant-controls {

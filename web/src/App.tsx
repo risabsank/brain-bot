@@ -86,6 +86,8 @@ function App() {
     const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
     const [isAiEnabled, setIsAiEnabled] = useState(true);
     const [isAssistantVisible, setIsAssistantVisible] = useState(true);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isAssistantCollapsed, setIsAssistantCollapsed] = useState(false);
     const [isAutoPolling, setIsAutoPolling] = useState(true);
     const [pollingIntervalMs, setPollingIntervalMs] = useState(1400);
     const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
@@ -367,44 +369,51 @@ function App() {
         selectionRange?.end
     ]);
     return (
-        <div className="app">
-            <aside className="sidebar">
+        <div className={`app ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+            <aside className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
                 <div className="sidebar-header">
-                    <h1>Brain Bot</h1>
-                    <button className="primary-action" onClick={() => setModalOpen(true)}>+ New</button>
+                    {!isSidebarCollapsed && <h1>Brain Bot</h1>}
+                    <button onClick={() => setIsSidebarCollapsed((collapsed) => !collapsed)}>
+                        {isSidebarCollapsed ? 'Expand' : 'Collapse'}
+                    </button>
+                    {!isSidebarCollapsed && <button className="primary-action" onClick={() => setModalOpen(true)}>+ New</button>}
                 </div>
 
-                <input
-                    className="search-input"
-                    placeholder="Search by title/content"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                />
+                {!isSidebarCollapsed && (
+                    <>
+                        <input
+                            className="search-input"
+                            placeholder="Search by title/content"
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                        />
 
-                <select className="filter-select" value={filterType} onChange={(event) => setFilterType(event.target.value)}>
-                    <option value="all">All types</option>
-                    <option value="brainstorm">Brainstorm</option>
-                    <option value="project-planning">Project Planning</option>
-                    <option value="prompted-brainstorming">Prompted Brainstorming</option>
-                    <option value="reading-assistance">Reading Assistance</option>
-                </select>
+                        <select className="filter-select" value={filterType} onChange={(event) => setFilterType(event.target.value)}>
+                            <option value="all">All types</option>
+                            <option value="brainstorm">Brainstorm</option>
+                            <option value="project-planning">Project Planning</option>
+                            <option value="prompted-brainstorming">Prompted Brainstorming</option>
+                            <option value="reading-assistance">Reading Assistance</option>
+                        </select>
 
-                <div className="session-list">
-                    {sessions.map((session) => (
-                        <button
-                            key={session.id}
-                            className={`session-card ${activeSession?.id === session.id ? 'active' : ''}`}
-                            onClick={() => openSession(session.id)}
-                        >
-                            <strong>{session.title}</strong>
-                            <span>{session.type}</span>
-                            <small>{new Date(session.updated_at).toLocaleString()}</small>
-                        </button>
-                    ))}
-                </div>
+                        <div className="session-list">
+                            {sessions.map((session) => (
+                                <button
+                                    key={session.id}
+                                    className={`session-card ${activeSession?.id === session.id ? 'active' : ''}`}
+                                    onClick={() => openSession(session.id)}
+                                >
+                                    <strong>{session.title}</strong>
+                                    <span>{session.type}</span>
+                                    <small>{new Date(session.updated_at).toLocaleString()}</small>
+                                </button>
+                            ))}
+                        </div>
+                    </>
+                )}
             </aside>
 
-            <main className={`workspace ${!isAssistantVisible ? 'no-assistant' : ''}`}>
+            <main className={`workspace ${!isAssistantVisible ? 'no-assistant' : ''} ${isAssistantCollapsed ? 'assistant-collapsed' : ''}`}>
                 <div className="editor-pane">
                     <div className="toolbar">
                         <p>{activeHint}</p>
@@ -560,68 +569,77 @@ function App() {
                 </div>
 
                 {isAssistantVisible && (
-                    <aside className="assistant-pane">
-                        <h3>AI Copilot</h3>
-                        <div className="assistant-controls">
-                            <label className="toggle">
-                                <input
-                                    type="checkbox"
-                                    checked={isAiEnabled}
-                                    onChange={(event) => setIsAiEnabled(event.target.checked)}
-                                />
-                                AI enabled
-                            </label>
-                            <label className="toggle">
-                                <input
-                                    type="checkbox"
-                                    checked={isAutoPolling}
-                                    disabled={!isAiEnabled}
-                                    onChange={(event) => setIsAutoPolling(event.target.checked)}
-                                />
-                                Auto polling
-                            </label>
-                            <label className="interval-input">
-                                Poll every
-                                <input
-                                    type="number"
-                                    min={500}
-                                    step={100}
-                                    value={pollingIntervalMs}
-                                    disabled={!isAiEnabled || !isAutoPolling}
-                                    onChange={(event) => setPollingIntervalMs(Math.max(500, Number(event.target.value) || 500))}
-                                />
-                                ms
-                            </label>
-                            <button
-                                className="primary-action"
-                                disabled={!activeSession || !isAiEnabled}
-                                onClick={() => refreshSuggestions(activeSession!.id)}
-                            >
-                                Refresh now
-                            </button>
-                        </div>
-                        {notice && <div className="notice">{notice}</div>}
-                        {!pendingSuggestions.length && (
-                            <p className="muted">
-                                {isAiEnabled
-                                    ? 'Suggestions auto-refresh while you type in brainstorming and project-planning modes.'
-                                    : 'AI Copilot is disabled.'}
-                            </p>
-                        )}
-                        <div className="suggestions-list">
-                            {pendingSuggestions.map((suggestion) => (
-                                <div key={suggestion.id} className="suggestion-card">
-                                    <span className="chip">{suggestion.category}</span>
-                                    <p>{suggestion.text}</p>
-                                    <div className="actions">
-                                        <button onClick={() => setSuggestionState(suggestion.id, 'accepted')}>Accept</button>
-                                        <button className="ghost" onClick={() => setSuggestionState(suggestion.id, 'dismissed')}>
-                                            Dismiss
-                                        </button>
-                                    </div>
+                    <aside className={`assistant-pane ${isAssistantCollapsed ? 'collapsed' : ''}`}>
+                        {isAssistantCollapsed ? (
+                            <button onClick={() => setIsAssistantCollapsed(false)}>Expand AI</button>
+                        ) : (
+                            <>
+                                <div className="assistant-header">
+                                    <h3>AI Copilot</h3>
+                                    <button onClick={() => setIsAssistantCollapsed(true)}>Collapse</button>
                                 </div>
-                            ))}
-                        </div>
+                                <div className="assistant-controls">
+                                    <label className="toggle">
+                                        <input
+                                            type="checkbox"
+                                            checked={isAiEnabled}
+                                            onChange={(event) => setIsAiEnabled(event.target.checked)}
+                                        />
+                                        AI enabled
+                                    </label>
+                                    <label className="toggle">
+                                        <input
+                                            type="checkbox"
+                                            checked={isAutoPolling}
+                                            disabled={!isAiEnabled}
+                                            onChange={(event) => setIsAutoPolling(event.target.checked)}
+                                        />
+                                        Auto polling
+                                    </label>
+                                    <label className="interval-input">
+                                        Poll every
+                                        <input
+                                            type="number"
+                                            min={500}
+                                            step={100}
+                                            value={pollingIntervalMs}
+                                            disabled={!isAiEnabled || !isAutoPolling}
+                                            onChange={(event) => setPollingIntervalMs(Math.max(500, Number(event.target.value) || 500))}
+                                        />
+                                        ms
+                                    </label>
+                                    <button
+                                        className="primary-action"
+                                        disabled={!activeSession || !isAiEnabled}
+                                        onClick={() => refreshSuggestions(activeSession!.id)}
+                                    >
+                                        Refresh now
+                                    </button>
+                                </div>
+                                {notice && <div className="notice">{notice}</div>}
+                                {!pendingSuggestions.length && (
+                                    <p className="muted">
+                                        {isAiEnabled
+                                            ? 'Suggestions auto-refresh while you type in brainstorming and project-planning modes.'
+                                            : 'AI Copilot is disabled.'}
+                                    </p>
+                                )}
+                                <div className="suggestions-list">
+                                    {pendingSuggestions.map((suggestion) => (
+                                        <div key={suggestion.id} className="suggestion-card">
+                                            <span className="chip">{suggestion.category}</span>
+                                            <p>{suggestion.text}</p>
+                                            <div className="actions">
+                                                <button onClick={() => setSuggestionState(suggestion.id, 'accepted')}>Accept</button>
+                                                <button className="ghost" onClick={() => setSuggestionState(suggestion.id, 'dismissed')}>
+                                                    Dismiss
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </aside>
                 )}
             </main>
