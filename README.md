@@ -53,7 +53,7 @@ No separate DB server is required.
 1. Copy env file:
 
 ```bash
-cp .env.example server/.env
+cp .env server/.env
 ```
 
 2. Start backend once:
